@@ -1,3 +1,7 @@
+Temp ReadMe:
+
+Credit: Yang Liu Cody Balos, and Vivek Pallipuram - University of the Pacific
+
 usage: ./goodfeatures [-v,-vv] <full path to the image> [sigma] [windowsize] [sensitivity] 
 flags:
 	-h: show this help menu
