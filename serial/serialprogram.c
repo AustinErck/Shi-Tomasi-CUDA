@@ -12,7 +12,7 @@
 #include <math.h>
 #include <string.h>
 #include <sys/time.h>
-#include "image_template.h"
+#include "image_template_serial.h"
 #include "serialprogram.h"
 
 #define RADIUS_OF_FEATURE_MARKER 8

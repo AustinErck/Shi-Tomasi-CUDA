@@ -1,26 +1,32 @@
-CC=gcc
-CCFLAGS=-Wall -std=c99
-LDFLAGS=-lm
-SOURCES=$(wildcard *.c)
-OBJECTS=$(SOURCES:.c=.o)
-TARGET=goodfeatures
+# The variable CC specifies which compiler will be used.
+# (because different unix systems may use different compilers)
+CC=nvcc
 
-all: debug
+# The variable CFLAGS specifies compiler options
+#   -c :    Only compile (don't link)
+#   -Wall:  Enable all warnings about lazy / dangerous C programming 
+#  You can add additional options on this same line..
+#  WARNING: NEVER REMOVE THE -c FLAG, it is essential to proper operation
+CFLAGS=--resource-usage -c -O3
 
-debug: CCFLAGS += -DDEBUG -g
-debug: $(TARGET)
+# All of the .h header files to use as dependencies
+HEADERS=image_template.h gpu.h 
 
-release: CCFLAGS += -O3
-release: $(TARGET)
+# All of the object files to produce as intermediary work
+OBJECTS=gpu.o
 
-$(TARGET): $(OBJECTS) $(CXXOBJECTS)
-	$(CC) -o $@ $^ $(LDFLAGS) 
+# The final program to build
+EXECUTABLE=goodfeatures
 
-%.o: %.c %.h
-	$(CC) $(CCFLAGS) -c $<
+# --------------------------------------------
 
-%.o: %.c
-	$(CC) $(CCFLAGS) -c $<
+all: $(EXECUTABLE)
+
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $(EXECUTABLE)
+
+%.o: %.cu $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ $<
 
 clean:
-	rm -f *.pgm *.o $(TARGET) 
+	rm -rf *.o $(EXECUTABLE) *.pgm *.o* *.e* #remove exec, pgms, and slurm error and output files:
