@@ -10,6 +10,12 @@
 #ifndef SHI_TOMASI_GPU_H
 #define SHI_TOMASI_GPU_H
 
+typedef struct FloatWrap {
+	float data;
+	int x;
+	int y;
+} FloatWrap;
+
 /**
 *   Calclates the number of microseconds between two timeval structures
 *   
@@ -50,15 +56,41 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 *   Calculates eigenvalues for horizontal and vertical images and returns an image with the lowest value for each pixel. Uses CUDA and optimized with a shared memory implementation.
 *	*Assumes that the provided windowSize has odd dimensions
 *   
-*   \param eigenValues Output image with eigen values
 *	\param horizontalImage Horizontal input image
 *	\param verticalImage Vertical input image
+*   \param eigenvalues Output image with eigen values
 *   \param imageWidth Input & output image width
 *   \param imageHeight Input & output image height
 *   \param windowSize Dimension of square window used to calculate eigenvalues
 *
 **/
 __global__
-void computeEigenValues(const float* horizontalImage, const float* verticalImage, float* eigenValues, const int imageWidth, const int imageHeight, const int windowSize);
+void computeEigenvalues(const float* horizontalImage, const float* verticalImage, float* eigenvalues, const int imageWidth, const int imageHeight, const int windowSize);
+
+/**
+*   Combines float array data with local positions into wrappedArray using CUDA
+*   
+*	\param array Array data to wrap
+*	\param wrappedArray Output array
+*   \param imageWidth Input & output image width
+*   \param imageHeight Input & output image height
+*
+**/
+__global__
+void wrapFloatArray(const float* array, FloatWrap* wrappedArray, const int imageWidth, const int imageHeight);
+
+/**
+*   TODO
+*   
+*	\param inputImage Input image that results will be added to
+*	\param wrappedEigenvalues Array data to wrap
+*	\param outputImage Output image
+*   \param imageWidth Input & output image width
+*   \param imageHeight Input & output image height
+*	\param sensitivity Percentage used to limit the amount of features that will be considered (should default to 0.1)
+*
+**/
+__global__
+void findFeatures(const float* inputImage, const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
 
 #endif

@@ -33,6 +33,7 @@ int main(int argc, char **argv){
 	// Setup CUDA pointers
 	float *h_data1, *h_G, *h_DG; //host pointers
 	float *d_data1, *d_data2, *d_data3, *d_G, *d_DG; //device pointers
+	FloatWrap *d_fw; // Additional device pointer
 
 	// Read image into first data array
 	int width = 0, height = 0;
@@ -40,7 +41,8 @@ int main(int argc, char **argv){
 	read_image_template(filepath, &h_data1, &width, &height); // h_data1 = initialImage
 
 	// Calculate constants
-	const int bytesPerImage = sizeof(float) * width * height;
+	const int imageSize = width * height;
+	const int bytesPerImage = sizeof(float) * imageSize;
 	const int bytesPerBlock = sizeof(float) * blockSize * blockSize;
 
 	// Setup CUDA grid and blocks based on image size
@@ -57,6 +59,7 @@ int main(int argc, char **argv){
 	cudaMalloc((void **)&d_data3, bytesPerImage);
 	cudaMalloc((void **)&d_G, sizeof(float) * kernelWidth);
 	cudaMalloc((void **)&d_DG, sizeof(float) * kernelWidth);
+	cudaMalloc((void **)&d_fw, sizeof(FloatWrap) * imageSize);
 
 	// Begin computation timer
     gettimeofday(&computationStart, NULL);
@@ -74,8 +77,13 @@ int main(int argc, char **argv){
     convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
     convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data2 = vertical
 
-	// Compute eigen values
-	computeEigenValues<<<dimGrid,dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // d_data3 = eigenValues
+	// Compute eigenvalues
+	computeEigenvalues<<<dimGrid,dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data3 = eigenvalues
+
+	// Wrap eigenvalues
+	wrapFloatArray<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_fw, width, height);
+
+	// Sort array of wrapped eigenvalues
 
 	// TODO: Find features
 
@@ -194,7 +202,7 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 }
 
 __global__
-void computeEigenValues(const float* horizontalImage, const float* verticalImage, float* eigenValues, const int imageWidth, const int imageHeight, const int windowSize) {
+void computeEigenvalues(const float* horizontalImage, const float* verticalImage, float* eigenvalues, const int imageWidth, const int imageHeight, const int windowSize) {
 
 	// Calculate window center constant
     const int windowCenter = windowSize / 2;
@@ -255,12 +263,35 @@ void computeEigenValues(const float* horizontalImage, const float* verticalImage
         }
     }
 
-	// Calculate eigen values
+	// Calculate eigenvalues
 	const float temp1 = (sumIXX + sumIYY)/2;
 	const float temp2 = powf( powf(sumIXX + sumIYY, 2.0)/4.0 - (sumIXX * sumIYY - powf(sumIXIY, 2.0)), 0.5);
-	float eigenValue1 = temp1 + temp2;
-	float eigenValue2 = temp1 - temp2;
+	float eigenvalue1 = temp1 + temp2;
+	float eigenvalue2 = temp1 - temp2;
 
-	// Save smaller of the two eigen values
-	eigenValues[j * imageWidth + i] = (eigenValue1 >= eigenValue2) ? eigenValue2 : eigenValue1;
+	// Save smaller of the two eigenvalues
+	eigenvalues[yGlobal * imageWidth + xGlobal] = (eigenvalue1 >= eigenvalue2) ? eigenvalue2 : eigenvalue1;
+}
+
+__global__
+void wrapFloatArray(const float* array, FloatWrap* wrappedArray, const int imageWidth, const int imageHeight) {
+	
+	// Get x and y based on thread and block index
+    const int xBlockOffset = blockIdx.x * blockDim.x;
+    const int yBlockOffset = blockIdx.y * blockDim.y;
+    const int xLocal = threadIdx.x;
+    const int yLocal = threadIdx.y;
+    const int xGlobal = xLocal + xBlockOffset;
+	const int yGlobal = yLocal + yBlockOffset;
+	const int arrayIndex = yGlobal * imageWidth + xGlobal;
+
+	// Add new instance to array
+	wrappedArray[arrayIndex].data = array[yGlobal * imageWidth + xGlobal];
+	wrappedArray[arrayIndex].x = xGlobal;
+	wrappedArray[arrayIndex].y = yGlobal;
+}
+
+__global__
+void findFeatures(const float* inputImage, const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity) {
+
 }
