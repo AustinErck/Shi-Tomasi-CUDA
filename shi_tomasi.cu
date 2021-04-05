@@ -72,10 +72,10 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data3(temp_vertical) => data2(vertical)
 
 	// Compute eigenvalues
-	//computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data1(horizontal), data2(vertical) => data3(eigenvalues)
+	computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data1(horizontal), data2(vertical) => data3(eigenvalues)
 
 	// Wrap eigenvalues with LocationData struct
-	//generateLocationData<<<dimGrid, dimBlock>>>(d_data3, d_ld, width);
+	generateLocationData<<<dimGrid, dimBlock>>>(d_data3, d_ld, width);
 
 	// Sort array of wrapped eigenvalues
 	//thrust::device_ptr< LocationData<float> > thr_d(d_ld);
@@ -83,7 +83,7 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	//thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end(), LocationData<float>());
 
 	// Copy sorted LocationData array back to the host
-	//cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
 
 	// Find features
 	//findFeatures(h_data1, h_ld, width, height, sensitivity);
