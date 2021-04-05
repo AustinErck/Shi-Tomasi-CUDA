@@ -75,7 +75,7 @@ int main(int argc, char **argv){
     convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data2 = vertical
 
 	// Compute eigen values
-	computeEigenValues<<<dimGrid,dimBlock, bytesPerBlock * 2>>>(d_data3, d_data1, d_data2, width, height, windowSize); // d_data3 = eigenValues
+	computeEigenValues<<<dimGrid,dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // d_data3 = eigenValues
 
 	// TODO: Find features
 
@@ -194,7 +194,7 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 }
 
 __global__
-void computeEigenValues(float* eigenValues, const float* horizontalImage, const float* verticalImage, const int imageWidth, const int imageHeight, const int windowSize) {
+void computeEigenValues(const float* horizontalImage, const float* verticalImage, float* eigenValues, const int imageWidth, const int imageHeight, const int windowSize) {
 
 	// Calculate window center constant
     const int windowCenter = windowSize / 2;

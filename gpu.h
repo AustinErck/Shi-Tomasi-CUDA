@@ -59,6 +59,6 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 *
 **/
 __global__
-void computeEigenValues(float* eigenValues, const float* horizontalImage, const float* verticalImage, const int imageWidth, const int imageHeight, const int windowSize);
+void computeEigenValues(const float* horizontalImage, const float* verticalImage, float* eigenValues, const int imageWidth, const int imageHeight, const int windowSize);
 
 #endif
