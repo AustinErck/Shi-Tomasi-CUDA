@@ -42,9 +42,10 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	// Setup CUDA grid and blocks based on image size
 	dim3 dimBlock(blockSize, blockSize);
 	dim3 dimGrid(width/blockSize, height/blockSize); // ASSUMPTION: Image is divisible by 16
+	printf("%d %d %d %d\n", dimGrid.x, dimGrid.y, dimBlock.x, dimBlock.y);
 
 	// Malloc data on host
-	h_ld = (LocationData<float>*)malloc(sizeof(LocationData<float>) * imageSize);
+	//h_ld = (LocationData<float>*)malloc(sizeof(LocationData<float>) * imageSize);
 
 	// Malloc data on devices
 	cudaMalloc((void **)&d_data1, bytesPerImage);
@@ -52,7 +53,7 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	cudaMalloc((void **)&d_data3, bytesPerImage);
 	cudaMalloc((void **)&d_G, sizeof(float) * kernelWidth);
 	cudaMalloc((void **)&d_DG, sizeof(float) * kernelWidth);
-	cudaMalloc((void **)&d_ld, sizeof(LocationData<float>) * imageSize);
+	//cudaMalloc((void **)&d_ld, sizeof(LocationData<float>) * imageSize);
 
 	// Begin computation timer
 	gettimeofday(computationStart, NULL);
@@ -63,7 +64,7 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	cudaMemcpy(d_DG, h_DG, sizeof(float) * kernelWidth, cudaMemcpyHostToDevice);
 
 	// Temp Horizontal/Vertical convolutions
-	convolve<<<dimGrid, dimBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
+	//convolve<<<dimGrid, dimBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
 	//convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data1(input) => data3(temp_vertical)
 
 	// Horizontal/Vertical convolutions
@@ -82,7 +83,7 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	//thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end(), LocationData<float>());
 
 	// Copy sorted LocationData array back to the host
-	cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
+	//cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
 
 	// Find features
 	//findFeatures(h_data1, h_ld, width, height, sensitivity);
@@ -98,13 +99,13 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	free(h_data1);
 	free(h_G);
 	free(h_DG);
-	free(h_ld);
+	//free(h_ld);
 	cudaFree(d_data1);
 	cudaFree(d_data2);
 	cudaFree(d_data3);
 	cudaFree(d_G);
 	cudaFree(d_DG);
-	cudaFree(d_ld);
+	//cudaFree(d_ld);
 }
 
 long double calculateTime(struct timeval start, struct timeval end) {
