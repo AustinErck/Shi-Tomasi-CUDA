@@ -48,12 +48,10 @@ long double calculateTime(struct timeval start, struct timeval end);
 /**
 *   Generates guassian and derivative guassian kernels needed to perform convolution in Shi-Tomasi
 *   
-*   \param start Beginning of the measured time period
-*	\param end End of the measured time period
-*   \return long double
+* TODO
 *
 **/
-void generateKernels(float* G, float* DG, int* width, const float sigma);
+void generateKernels(float** G, float** DG, int* width, const float sigma);
 
 /**
 *   Performs a convolve operation using CUDA and optimized with a shared memory implementation.

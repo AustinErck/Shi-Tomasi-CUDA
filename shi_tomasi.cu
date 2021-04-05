@@ -41,7 +41,10 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 
 	// Generate kernels
 	int kernelWidth;
-	generateKernels(h_G, h_DG, &kernelWidth, sigma);
+	generateKernels(&h_G, &h_DG, &kernelWidth, sigma);
+
+	// Malloc data on host
+	h_ld = (LocationData<float>*)malloc(sizeof(LocationData<float>) * imageSize);
 
 	// Malloc data on devices
 	cudaMalloc((void **)&d_data1, bytesPerImage);
@@ -93,8 +96,6 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 
 	// Free data from host and devices
 	free(h_data1);
-	free(h_data2);
-	free(h_data3);
 	free(h_G);
 	free(h_DG);
 	free(h_ld);
@@ -110,11 +111,15 @@ long double calculateTime(struct timeval start, struct timeval end) {
 	return (end.tv_sec * 1000000 + end.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec);	
 }
 
-void generateKernels(float* G, float* DG, int* width, const float sigma){
+void generateKernels(float** G, float** DG, int* width, const float sigma){
 
 	// Calculate a and w(idth) variables used in guassian and derivative guassian kernel calculations
 	const float a = roundf(2.5 * sigma - 0.5);
 	const uint8_t w = 2 * a + 1;
+
+	// Malloc data on host for kernels
+	*G = (float*)malloc(w * sizeof(float));
+	*DG = (float*)malloc(w * sizeof(float));
 
 	// Update width pointer to local value w
 	*width = w;
@@ -125,23 +130,23 @@ void generateKernels(float* G, float* DG, int* width, const float sigma){
 	// Loop through the width of the kernel and populate kernels while calculating the sum of each
 	uint8_t i;
 	for(i = 0; i < w; i++) {
-		G[i] = expf(-1.0 * powf((float)(i) - a, 2.0) / (2.0 * powf(sigma, 2.0)));
-		DG[i] = -1.0 * ( (float)(i + 1) - 1.0 - a) * expf(-1.0 * powf((float)(i + 1) - 1.0 - a, 2.0) / (2.0 * powf(sigma, 2.0)));
-		sumG += G[i];
-		sumDG -= i * DG[i];
+		*G[i] = expf(-1.0 * powf((float)(i) - a, 2.0) / (2.0 * powf(sigma, 2.0)));
+		*DG[i] = -1.0 * ( (float)(i + 1) - 1.0 - a) * expf(-1.0 * powf((float)(i + 1) - 1.0 - a, 2.0) / (2.0 * powf(sigma, 2.0)));
+		sumG += *G[i];
+		sumDG -= i * *DG[i];
 	}
 
 	// Divide each value in the kernel by the total sum of the kernel
 	for (i = 0; i < w; i++){
-		G[i] = G[i] / sumG;
-		DG[i] = DG[i] / sumDG;
+		*G[i] = *G[i] / sumG;
+		*DG[i] = *DG[i] / sumDG;
 	}
 
 	// Flip derivative kernel
 	for (i = 0; i < w/2; i++) {
-		const float temp = DG[w - i - 1];
-		DG[w - i - 1] = DG[i];
-		DG[i] = temp;
+		const float temp = *DG[w - i - 1];
+		*DG[w - i - 1] = *DG[i];
+		*DG[i] = temp;
 	}
 }
 
