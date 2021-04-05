@@ -12,6 +12,10 @@ dist/
 *.py[cod]
 *.o
 
+# Debug script
+debug.sh
+*.pgm
+
 # Log files
 *.log
 

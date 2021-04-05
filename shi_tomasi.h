@@ -24,16 +24,19 @@ struct LocationData {
 };
 
 /**
-*   TODO - Add other params
+*   Performs feature finding using the Shi-Tomasi algorihm. Output is saved to the current directory
 *   
 *   \param filepath Full file path to image
 *	\param sigma Sigma value used to generate gaussian kernels
 *   \param sensitivity Percent of total image size that will determine many features will be considered
 *	\param windowSize How large the window for eigenvalue calculation will be
 *   \param blockSize Size of CUDA blocks
+*   \param verbosity Should additional debugging output be provided
+*   \param computationStart Pointer to timeval start
+*   \param computationEnd Pointer to timeval end
 *
 **/
-void shiTomasi(char* filepath, const float sigma, const float sensitivity, const uint8_t windowSize, const uint8_t blockSize, uint8_t verbosity, struct timeval computationStart, struct timeval computationEnd);
+void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, bool verbosity, struct timeval* computationStart, struct timeval* computationEnd);
 
 /**
 *   Calculates the number of microseconds between two timeval structures
@@ -48,7 +51,10 @@ long double calculateTime(struct timeval start, struct timeval end);
 /**
 *   Generates guassian and derivative guassian kernels needed to perform convolution in Shi-Tomasi
 *   
-* TODO
+*   \param G Pointer to save gaussian kernel results to
+*   \param DG Pointer to save derivative gaussian kernel results to
+*   \param width Pointer to save kernel width to
+*   \param sigma Sigma value provided by user
 *
 **/
 void generateKernels(float** G, float** DG, int* width, const float sigma);

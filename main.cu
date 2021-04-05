@@ -16,21 +16,22 @@ int main(int argc, char **argv) {
 
 	// Handle arguments
 	// TODO: Read from argv
-	char *filepath = NULL;
-	uint8_t verbosity = 0; // Determines how much information should be shown
+	char test[] = "../ecpe251/images/Lenna_org_1024.pgm";
+	char *filepath = test;
+	bool verbosity = false; // Determines how much information should be shown
 	float sigma = 1.1; // Sigma of the gaussian distribution
-	uint8_t blockSize = 16; // CUDA block size
-	uint8_t windowSize = 4; // Size of a pixel 'neighborhood'
 	float sensitivity = 0.1; // Number of features = sensitivity*image_width
+	unsigned int blockSize = 16; // CUDA block size
+	unsigned int windowSize = 4; // Size of a pixel 'neighborhood'
 
     // Setup timers
     struct timeval computationStart, computationEnd;
 
     // Run algorihm
-	shiTomasi(filepath, sigma, sensitivity, windowSize, blockSize, verbosity, computationStart, computationEnd);
+	shiTomasi(filepath, sigma, sensitivity, windowSize, blockSize, verbosity, &computationStart, &computationEnd);
 
 	// Print benchmarching information
-	//printf("%d, %f, %x, %x, %f, %Lf\n", 0, sigma, blockSize, windowSize, sensitivity, calculateTime(computationStart, computationEnd));
+	printf("%d, %f, %d, %d, %f, %Lf\n", 0, sigma, blockSize, windowSize, sensitivity, calculateTime(computationStart, computationEnd));
 
 	return 0;
 };
