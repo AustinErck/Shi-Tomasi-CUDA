@@ -7,11 +7,10 @@
 node_modules/
 dist/
 
-# Compiled Java class files
+# Compiled code
 *.class
-
-# Compiled Python bytecode
 *.py[cod]
+*.o
 
 # Log files
 *.log
@@ -36,6 +35,7 @@ TEST*.xml
 Thumbs.db
 
 # Applications
+goodfeatures
 *.app
 *.exe
 *.war

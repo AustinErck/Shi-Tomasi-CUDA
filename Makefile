@@ -7,10 +7,10 @@ CC=nvcc
 #   -Wall:  Enable all warnings about lazy / dangerous C programming 
 #  You can add additional options on this same line..
 #  WARNING: NEVER REMOVE THE -c FLAG, it is essential to proper operation
-CFLAGS=--resource-usage -c -O3
+CFLAGS=-c -O3
 
 # All of the .h header files to use as dependencies
-HEADERS=image_template.h gpu.h 
+HEADERS=image_template.h
 
 # All of the object files to produce as intermediary work
 OBJECTS=gpu.o
