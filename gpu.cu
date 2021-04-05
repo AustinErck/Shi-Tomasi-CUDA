@@ -11,6 +11,10 @@
 #include <sys/time.h>
 #include <argp.h>
 #include <cuda.h>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include <thrust/sort.h>
+#include <thrust/copy.h>
 #include "image_template.h"
 #include "gpu.h"
 
@@ -71,7 +75,7 @@ int main(int argc, char **argv){
 
 	// Temp Horizontal/Vertical convolutions
 	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1 = temp_horizontal
-    convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data2 = temp_vertical
+	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
    
     // Horizontal/Vertical convolutions
     convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
@@ -84,8 +88,13 @@ int main(int argc, char **argv){
 	wrapFloatArray<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_fw, width, height);
 
 	// Sort array of wrapped eigenvalues
+	thrust::device_ptr<FloatWrap> thr_d(d_fw);
+    thrust::device_vector<FloatWrap>d_sortedFloatWrap(thr_d, thr_d + (height * width));
+    thrust::sort(d_sortedFloatWrap.begin(), d_sortedFloatWrap.end(), FloatWrap_sort);
 
-	// TODO: Find features
+	// Find features
+	//findFeatures(const float* inputImage, const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
+
 
 	// Copy data from device to host
 	cudaMemcpy(h_data1, d_data1, bytesPerImage, cudaMemcpyDeviceToHost);
@@ -106,6 +115,10 @@ int main(int argc, char **argv){
 	printf("%d, %f, %x, %x, %f, %Lf\n", width, sigma, blockSize, windowSize, sensitivity, calculateTime(computationStart, computationEnd));
 
 	return 0;
+}
+
+bool FloatWrap_sort(FloatWrap A, FloatWrap B) {
+	return (A.data > B.data);
 }
 
 long double calculateTime(struct timeval start, struct timeval end) {

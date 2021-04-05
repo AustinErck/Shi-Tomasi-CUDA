@@ -17,7 +17,17 @@ typedef struct FloatWrap {
 } FloatWrap;
 
 /**
-*   Calclates the number of microseconds between two timeval structures
+*   Sort function to properly sort FloatWrap arrays
+*   
+*   \param A First FloatWrap
+*	\param B Second FloatWrap
+*   \return If A should be sorted after B
+*
+**/
+bool FloatWrap_sort(FloatWrap A, FloatWrap B);
+
+/**
+*   Calculates the number of microseconds between two timeval structures
 *   
 *   \param start Beginning of the measured time period
 *	\param end End of the measured time period
@@ -91,6 +101,6 @@ void wrapFloatArray(const float* array, FloatWrap* wrappedArray, const int image
 *
 **/
 __global__
-void findFeatures(const float* inputImage, const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
+void findFeatures(const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
 
 #endif
