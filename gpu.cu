@@ -74,18 +74,18 @@ int main(int argc, char **argv){
 	cudaMemcpy(d_DG, h_DG, sizeof(float) * kernelWidth, cudaMemcpyHostToDevice);
 
 	// Temp Horizontal/Vertical convolutions
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1 = temp_horizontal
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1 = temp_horizontal
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
 
 	// Horizontal/Vertical convolutions
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data2 = vertical
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data2 = vertical
 
 	// Compute eigenvalues
-	computeEigenvalues<<<dimGrid,dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data3 = eigenvalues
+	computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data3 = eigenvalues
 
 	// Wrap eigenvalues
-	wrapFloatArray<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_fw, width, height);
+	wrapFloatArray<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_fw, width, height);
 
 	// Sort array of wrapped eigenvalues
 	thrust::device_ptr<FloatWrap> thr_d(d_fw);
