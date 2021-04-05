@@ -74,15 +74,24 @@ int main(int argc, char **argv){
 	cudaMemcpy(d_DG, h_DG, sizeof(float) * kernelWidth, cudaMemcpyHostToDevice);
 
 	// Temp Horizontal/Vertical convolutions
-	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1 = temp_horizontal
-	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1(input) => data2(temp_vertical)
 
 	// Horizontal/Vertical convolutions
 	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
 	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data2 = vertical
 
+	// Temp Horizontal/Vertical convolutions
+	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
+	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data1(input) => data3(temp_vertical)
+
+	// Horizontal/Vertical convolutions
+	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data2(temp_horizontal) => data1(horizontal)
+	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data3(temp_vertical) => data2(vertical)
+
+
 	// Compute eigenvalues
-	computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data3 = eigenvalues
+	computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data1(horizontal), data2(vertical) => data3(eigenvalues)
 
 	// Wrap eigenvalues
 	wrapFloatArray<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_fw, width, height);
