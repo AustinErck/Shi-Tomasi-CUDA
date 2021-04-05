@@ -21,10 +21,10 @@ int main(int argc, char **argv){
 	// Handle arguments
 	// TODO: Read from argv
 	char *filepath = NULL;
-	uint8_t verbosity = 0; // Determines how much information should be shown
+	int verbosity = 0; // Determines how much information should be shown
 	float sigma = 1.1; // Sigma of the gaussian distribution
-	uint64_t blockSize = 16; // CUDA block size
-	uint64_t windowSize = 4; // Size of a pixel 'neighborhood'
+	int blockSize = 16; // CUDA block size
+	int windowSize = 4; // Size of a pixel 'neighborhood'
 	float sensitivity = 0.1; // Number of features = sensitivity*image_width
 
 	// Setup timers
@@ -39,6 +39,10 @@ int main(int argc, char **argv){
 	//const float &initialImage = h1_data;
 	read_image_template(filepath, &h_data1, &width, &height); // h_data1 = initialImage
 
+	// Calculate constants
+	const int bytesPerImage = sizeof(float) * width * height;
+	const int bytesPerBlock = sizeof(float) * blockSize * blockSize;
+
 	// Setup CUDA grid and blocks based on image size
 	dim3 dimBlock(blockSize, blockSize);
 	dim3 dimGrid(width/blockSize, height/blockSize); // ASSUMPTION: Image is divisible by 16
@@ -48,9 +52,9 @@ int main(int argc, char **argv){
 	generateKernels(h_G, h_DG, &kernelWidth, sigma);
 
 	// Malloc data on devices
-	cudaMalloc((void **)&d_data1, sizeof(float) * width * height);
-	cudaMalloc((void **)&d_data2, sizeof(float) * width * height);
-	cudaMalloc((void **)&d_data3, sizeof(float) * width * height);
+	cudaMalloc((void **)&d_data1, bytesPerImage);
+	cudaMalloc((void **)&d_data2, bytesPerImage);
+	cudaMalloc((void **)&d_data3, bytesPerImage);
 	cudaMalloc((void **)&d_G, sizeof(float) * kernelWidth);
 	cudaMalloc((void **)&d_DG, sizeof(float) * kernelWidth);
 
@@ -58,25 +62,25 @@ int main(int argc, char **argv){
     gettimeofday(&computationStart, NULL);
 
 	// Populate data on devices from host
-	cudaMemcpy(d_data1, h_data1, sizeof(float) * width * height, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_data1, h_data1, bytesPerImage, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_G, h_G, sizeof(float) * kernelWidth, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_DG, h_DG, sizeof(float) * kernelWidth, cudaMemcpyHostToDevice);
 
 	// Temp Horizontal/Vertical convolutions
-	convolveGPU<<<dimGrid,dimBlock, sizeof(float) * blockSize * blockSize>>>(d_data1, d_data2, width, height, d_G, 1, GWidth); // data1 = temp_horizontal
-    convolveGPU<<<dimGrid,dimBlock, sizeof(float) * blockSize * blockSize>>>(d_data1, d_data3, width, height, d_G, GWidth, 1); // data2 = temp_vertical
+	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1 = temp_horizontal
+    convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data2 = temp_vertical
    
     // Horizontal/Vertical convolutions
-    convolveGPU<<<dimGrid,dimBlock, sizeof(float) * blockSize * blockSize>>>(d_data2, d_data1, width, height, d_dG, dGWidth, 1); // data1 = horizontal
-    convolveGPU<<<dimGrid,dimBlock, sizeof(float) * blockSize * blockSize>>>(d_data3, d_data2, width, height, d_dG, 1, dGWidth); // data2 = vertical
-    //gettimeofday(&convEnd, NULL);
+    convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data1 = horizontal
+    convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data2 = vertical
 
-	// TODO: Compute eigen values
+	// Compute eigen values
+	computeEigenValues<<<dimGrid,dimBlock, bytesPerBlock * 2>>>(d_data3, d_data1, d_data2, width, height, windowSize); // d_data3 = eigenValues
 
 	// TODO: Find features
 
 	// Copy data from device to host
-	cudaMemcpy(h_data1, d_data1, sizeof(float) * width * height, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_data1, d_data1, bytesPerImage, cudaMemcpyDeviceToHost);
 
 	// Sync CUDA threads and measure computation time
     cudaDeviceSynchronize();
@@ -187,4 +191,76 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 
     // Write sum to memory
     outputImage[yGlobal * imageWidth + xGlobal] = sum;
+}
+
+__global__
+void computeEigenValues(float* eigenValues, const float* horizontalImage, const float* verticalImage, const int imageWidth, const int imageHeight, const int windowSize) {
+
+	// Calculate window center constant
+    const int windowCenter = windowSize / 2;
+    
+    // Set initial pixel value to zero
+    float sumIXX = 0, sumIYY = 0, sumIXIY = 0;
+
+    // Get x and y based on thread and block index
+    const int xBlockOffset = blockIdx.x * blockDim.x;
+    const int yBlockOffset = blockIdx.y * blockDim.y;
+    const int xLocal = threadIdx.x;
+    const int yLocal = threadIdx.y;
+    const int xGlobal = xLocal + xBlockOffset;
+	const int yGlobal = yLocal + yBlockOffset;
+
+    // Setup shared data array
+    extern __shared__ float sharedData[];
+	float *horizontalImageLocal = (float*)&sharedData; // Use first half of shared memory for horizontal image
+	float *verticalImageLocal = (float*)&sharedData + (sizeof(float) * imageWidth * imageHeight); // Use second half of shared memory for vertical image
+    horizontalImageLocal[yLocal * blockDim.x + xLocal] = horizontalImage[yGlobal * imageWidth + xGlobal];
+	verticalImageLocal[yLocal * blockDim.x + xLocal] = verticalImage[yGlobal * imageWidth + xGlobal];
+    __syncthreads();
+
+    // Loop through each pixel of the   kernel
+    int i, j;
+    for(j = 0; j < windowSize; j++) {
+        for(i = 0; i < windowSize; i++) {
+        
+            // Calculate offset based on current pixel in kernel
+            const int xCalculated = xGlobal + (i - windowCenter);
+            const int yCalculated = yGlobal + (j - windowCenter);
+            
+            // Check that pixel is not out of bounds. Skip if it is
+            if(xCalculated < 0 || xCalculated >= imageWidth || yCalculated < 0 || yCalculated >= imageHeight) {
+                continue;
+            }
+
+            // Determine sum values for ixx, iyy, and ixiy
+			// Both cases perform the same action, however if possible local data(horizontalImageLocal & verticalImageLocal) is used instead of global data(horizontalImage & verticalImage)
+            if(xCalculated >= xBlockOffset && xCalculated < xBlockOffset + blockDim.x && yCalculated >= yBlockOffset && yCalculated < yBlockOffset + blockDim.y) {
+                // Go to local data
+
+				// Calculate array offset
+				const int arrayOffset = (yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset);
+
+                // Calculate part of the convolve value based on image and kernel pixel.
+                sumIXX += powf(horizontalImageLocal[arrayOffset], 2.0); // horizontalImage^2
+				sumIYY += powf(verticalImageLocal[arrayOffset], 2.0); // verticalImage^2
+				sumIXIY += horizontalImageLocal[arrayOffset] * verticalImageLocal[arrayOffset]; // horizontalImage * verticalImage
+            } else {
+                // Go to global data
+
+				// Calculate part of the convolve value based on image and kernel pixel.
+                sumIXX += powf(horizontalImage[yCalculated * imageWidth + xCalculated], 2.0); // horizontalImage^2
+				sumIYY += powf(verticalImage[yCalculated * imageWidth + xCalculated], 2.0); // verticalImage^2
+				sumIXIY += horizontalImage[yCalculated * imageWidth + xCalculated] * verticalImageLocal[yCalculated * imageWidth + xCalculated]; // horizontalImage * verticalImage
+            }
+        }
+    }
+
+	// Calculate eigen values
+	const float temp1 = (sumIXX + sumIYY)/2;
+	const float temp2 = powf( powf(sumIXX + sumIYY, 2.0)/4.0 - (sumIXX * sumIYY - powf(sumIXIY, 2.0)), 0.5);
+	float eigenValue1 = temp1 + temp2;
+	float eigenValue2 = temp1 - temp2;
+
+	// Save smaller of the two eigen values
+	eigenValues[j * imageWidth + i] = (eigenValue1 >= eigenValue2) ? eigenValue2 : eigenValue1;
 }

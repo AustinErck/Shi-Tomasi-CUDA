@@ -46,4 +46,19 @@ void generateKernels(float* G, float* DG, int* width, const float sigma);
 __global__
 void convolve(const float* image, float* outputImage, const int imageWidth, const int imageHeight, const float* kernel, const int kernelWidth, const int kernelHeight);
 
+/**
+*   Calculates eigenvalues for horizontal and vertical images and returns an image with the lowest value for each pixel. Uses CUDA and optimized with a shared memory implementation.
+*	*Assumes that the provided windowSize has odd dimensions
+*   
+*   \param eigenValues Output image with eigen values
+*	\param horizontalImage Horizontal input image
+*	\param verticalImage Vertical input image
+*   \param imageWidth Input & output image width
+*   \param imageHeight Input & output image height
+*   \param windowSize Dimension of square window used to calculate eigenvalues
+*
+**/
+__global__
+void computeEigenValues(float* eigenValues, const float* horizontalImage, const float* verticalImage, const int imageWidth, const int imageHeight, const int windowSize);
+
 #endif
