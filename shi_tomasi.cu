@@ -16,13 +16,14 @@
 #include <thrust/sort.h>
 #include <thrust/copy.h>
 #include "shi_tomasi.h"
-#include "shi_tomasi.h"
+#include "image_template.h"
 
 void shiTomasi(char* filepath, const float sigma, const float sensitivity, const uint8_t windowSize, const uint8_t blockSize, uint8_t verbosity, struct timeval computationStart, struct timeval computationEnd) {
 
 	// Setup CUDA pointers
 	float *h_data1, *h_G, *h_DG; //host pointers
 	float *d_data1, *d_data2, *d_data3, *d_G, *d_DG; //device pointers
+	LocationData<float> *h_ld; // Additional host pointer
 	LocationData<float> *d_ld; // Additional device pointer
 
 	// Read image into first data array
@@ -77,14 +78,13 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	thrust::device_vector< LocationData<float> >d_sortedLocationData(thr_d, thr_d + (height * width));
 	thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end(), LocationData<float>());
 
+	// Copy sorted LocationData array back to the host
+	cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
+
 	// Find features
-	//findFeatures(const float* inputImage, const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
+	findFeatures(h_data1, h_ld, width, height, sensitivity);
 
-	// Copy data from device to host
-	cudaMemcpy(h_data1, d_data1, bytesPerImage, cudaMemcpyDeviceToHost);
-
-	// Sync CUDA threads and measure computation time
-	cudaDeviceSynchronize();
+	// Measure computation time
 	gettimeofday(&computationEnd, NULL);
 
 	// Save output image to disk
@@ -93,7 +93,17 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 
 	// Free data from host and devices
 	free(h_data1);
+	free(h_data2);
+	free(h_data3);
+	free(h_G);
+	free(h_DG);
+	free(h_ld);
 	cudaFree(d_data1);
+	cudaFree(d_data2);
+	cudaFree(d_data3);
+	cudaFree(d_G);
+	cudaFree(d_DG);
+	cudaFree(d_ld);
 }
 
 long double calculateTime(struct timeval start, struct timeval end) {
@@ -282,8 +292,65 @@ void generateLocationData(const float* array, LocationData<float>* wrappedArray,
 	wrappedArray[arrayIndex].y = yGlobal;
 }
 
-template <typename T>
-__global__
-void findFeatures(const LocationData<T>* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity) {
+void drawBox(float* image, const int x, const int y, const int imageWidth, const int imageHeight) {
+	const int radius = 3;
 
+	for (int j = -1 * radius; j <= radius; j++ ) {
+		for (int i = -1 * radius; i <= radius; i++) {
+			if ((y + j) >= 0 && (y + j) < imageHeight && (x + i) >= 0 && (x + i) < imageWidth) {
+				image[(y + j) * imageWidth + (x + i) ] = 0;
+			}
+		}
+	}
+}
+
+void findFeatures(float* image, const LocationData<float>* wrappedEigenvalues, const int imageWidth, const int imageHeight, const float sensitivity) {
+	
+	// Determine the max features that will be considered
+	int maxFeatures = ceil(imageWidth * sensitivity); // This is wrong, but was kept the same for performance testing
+	LocationData<float> features[maxFeatures];
+
+	// Set the first feature so we have a starting point.
+	features[0] = wrappedEigenvalues[0];
+	int featuresCount = 1;
+
+	// Loop through the wrappedEigenValues until all pixels have been considered or the max features has been reached
+	for (int i = 1; i < imageWidth * imageHeight && featuresCount < maxFeatures; i++) {
+		
+		/*
+		* The function below is incorrect and a corrected version is commented out below. The incorrect version has been kept to ensure fair performance testing and comparison
+		*/
+		
+		// Check if prospective feature is more than 8 manhattan distance away from any existing feature
+		for (int j = 0; j < featuresCount; ++j) {
+			int manhattan = abs(features[j].x - wrappedEigenvalues[i].x) + abs(features[j].y - wrappedEigenvalues[i].y);
+			if (manhattan > 8) { 
+				features[featuresCount] = wrappedEigenvalues[i];
+				featuresCount++;
+				break;
+			}
+		}
+
+		// Check if prospective feature is too close(<=8 manhattan distance) to any existing feature
+		/*bool invalidFeature = false;
+		for (int j = 0; j < featuresCount; ++j) {
+			int manhattan = abs(features[j].x - wrappedEigenvalues[i].x) + abs(features[j].y - wrappedEigenvalues[i].y);
+			if (manhattan <= 8) { 
+				invalidFeature = true;
+				break;
+			}
+		}
+
+		// If the feature is valid, add to the features array
+		invalidFeature
+		if (!invalidFeature) { 
+			features[featuresCount] = wrappedEigenvalues[i];
+			featuresCount++;
+		}*/
+	}
+
+	// Draw box around each feature
+	for (int i = 0; i < featuresCount; i++) {
+		drawBox(image, features[i].x, features[i].y, imageWidth, imageHeight);
+	}
 }

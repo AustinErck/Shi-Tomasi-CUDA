@@ -12,7 +12,7 @@
 #include <argp.h>
 #include "shi_tomasi.h"
 
-int main(int argc, char **argv){
+int main(int argc, char **argv) {
 
 	// Handle arguments
 	// TODO: Read from argv
@@ -33,4 +33,4 @@ int main(int argc, char **argv){
 	//printf("%d, %f, %x, %x, %f, %Lf\n", 0, sigma, blockSize, windowSize, sensitivity, calculateTime(computationStart, computationEnd));
 
 	return 0;
-}
+};

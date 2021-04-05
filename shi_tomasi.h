@@ -99,18 +99,27 @@ __global__
 void generateLocationData(const float* array, LocationData<float>* wrappedArray, const int imageWidth);
 
 /**
-*   TODO
+*   Boxes around a given pixel on top of the provided image
 *   
-*	\param inputImage Input image that results will be added to
+*	\param image Input image that results will be added to
+*	\param x Feature x coordinate to be outlined
+*	\param y Feature y coordinate to be outlined
+*   \param imageWidth Input & output image width
+*   \param imageHeight Input & output image height
+*
+**/
+void drawBox(float* image, const int x, const int y, const int imageWidth, const int imageHeight);
+
+/**
+*   Uses pre-sorted descending ordered wrapped eigenvalues and draws a box around the most prominent features that are at least 8 pixels apart
+*   
+*	\param image Input image that results will be added to
 *	\param wrappedEigenvalues Array data to wrap
-*	\param outputImage Output image
 *   \param imageWidth Input & output image width
 *   \param imageHeight Input & output image height
 *	\param sensitivity Percentage used to limit the amount of features that will be considered (should default to 0.1)
 *
 **/
-template <typename T> 
-__global__
-void findFeatures(const LocationData<T>* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
+void findFeatures(float* image, const LocationData<float>* wrappedEigenvalues, const int imageWidth, const int imageHeight, const float sensitivity);
 
 #endif
