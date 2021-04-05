@@ -18,7 +18,7 @@
 #include "shi_tomasi.h"
 #include "image_template.h"
 
-void shiTomasi(char* filepath, const float sigma, const float sensitivity, const uint8_t windowSize, const uint8_t blockSize, uint8_t verbosity, struct timeval computationStart, struct timeval computationEnd) {
+void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, bool verbosity, struct timeval* computationStart, struct timeval* computationEnd) {
 
 	// Setup CUDA pointers
 	float *h_data1, *h_G, *h_DG; //host pointers
@@ -35,13 +35,13 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	const int bytesPerImage = sizeof(float) * imageSize;
 	const int bytesPerBlock = sizeof(float) * blockSize * blockSize;
 
-	// Setup CUDA grid and blocks based on image size
-	dim3 dimBlock(blockSize, blockSize);
-	dim3 dimGrid(width/blockSize, height/blockSize); // ASSUMPTION: Image is divisible by 16
-
 	// Generate kernels
 	int kernelWidth;
 	generateKernels(&h_G, &h_DG, &kernelWidth, sigma);
+
+	// Setup CUDA grid and blocks based on image size
+	dim3 dimBlock(blockSize, blockSize);
+	dim3 dimGrid(width/blockSize, height/blockSize); // ASSUMPTION: Image is divisible by 16
 
 	// Malloc data on host
 	h_ld = (LocationData<float>*)malloc(sizeof(LocationData<float>) * imageSize);
@@ -55,7 +55,7 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	cudaMalloc((void **)&d_ld, sizeof(LocationData<float>) * imageSize);
 
 	// Begin computation timer
-	gettimeofday(&computationStart, NULL);
+	gettimeofday(computationStart, NULL);
 
 	// Populate data on devices from host
 	cudaMemcpy(d_data1, h_data1, bytesPerImage, cudaMemcpyHostToDevice);
@@ -63,32 +63,32 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	cudaMemcpy(d_DG, h_DG, sizeof(float) * kernelWidth, cudaMemcpyHostToDevice);
 
 	// Temp Horizontal/Vertical convolutions
-	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
-	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data1(input) => data3(temp_vertical)
+	convolve<<<dimGrid, dimBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
+	//convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data1(input) => data3(temp_vertical)
 
 	// Horizontal/Vertical convolutions
-	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data2(temp_horizontal) => data1(horizontal)
-	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data3(temp_vertical) => data2(vertical)
+	//convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data2(temp_horizontal) => data1(horizontal)
+	//convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data3(temp_vertical) => data2(vertical)
 
 	// Compute eigenvalues
-	computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data1(horizontal), data2(vertical) => data3(eigenvalues)
+	//computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data1(horizontal), data2(vertical) => data3(eigenvalues)
 
 	// Wrap eigenvalues with LocationData struct
-	generateLocationData<<<dimGrid, dimBlock>>>(d_data3, d_ld, width);
+	//generateLocationData<<<dimGrid, dimBlock>>>(d_data3, d_ld, width);
 
 	// Sort array of wrapped eigenvalues
-	thrust::device_ptr< LocationData<float> > thr_d(d_ld);
-	thrust::device_vector< LocationData<float> >d_sortedLocationData(thr_d, thr_d + (height * width));
-	thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end(), LocationData<float>());
+	//thrust::device_ptr< LocationData<float> > thr_d(d_ld);
+	//thrust::device_vector< LocationData<float> >d_sortedLocationData(thr_d, thr_d + (height * width));
+	//thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end(), LocationData<float>());
 
 	// Copy sorted LocationData array back to the host
 	cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
 
 	// Find features
-	findFeatures(h_data1, h_ld, width, height, sensitivity);
+	//findFeatures(h_data1, h_ld, width, height, sensitivity);
 
 	// Measure computation time
-	gettimeofday(&computationEnd, NULL);
+	gettimeofday(computationEnd, NULL);
 
 	// Save output image to disk
 	char outputFilename[] = "shiTomasi_cuda.pgm";
@@ -118,8 +118,8 @@ void generateKernels(float** G, float** DG, int* width, const float sigma){
 	const uint8_t w = 2 * a + 1;
 
 	// Malloc data on host for kernels
-	*G = (float*)malloc(w * sizeof(float));
-	*DG = (float*)malloc(w * sizeof(float));
+	float* g = (float*)malloc(w * sizeof(float));
+	float* dg = (float*)malloc(w * sizeof(float));
 
 	// Update width pointer to local value w
 	*width = w;
@@ -130,31 +130,35 @@ void generateKernels(float** G, float** DG, int* width, const float sigma){
 	// Loop through the width of the kernel and populate kernels while calculating the sum of each
 	uint8_t i;
 	for(i = 0; i < w; i++) {
-		*G[i] = expf(-1.0 * powf((float)(i) - a, 2.0) / (2.0 * powf(sigma, 2.0)));
-		*DG[i] = -1.0 * ( (float)(i + 1) - 1.0 - a) * expf(-1.0 * powf((float)(i + 1) - 1.0 - a, 2.0) / (2.0 * powf(sigma, 2.0)));
+		g[i] = expf(-1.0 * powf((float)(i) - a, 2.0) / (2.0 * powf(sigma, 2.0)));
+		dg[i] = -1.0 * ( (float)(i + 1) - 1.0 - a) * expf(-1.0 * powf((float)(i + 1) - 1.0 - a, 2.0) / (2.0 * powf(sigma, 2.0)));
 		sumG += *G[i];
 		sumDG -= i * *DG[i];
 	}
 
 	// Divide each value in the kernel by the total sum of the kernel
 	for (i = 0; i < w; i++){
-		*G[i] = *G[i] / sumG;
-		*DG[i] = *DG[i] / sumDG;
+		g[i] = *G[i] / sumG;
+		dg[i] = *DG[i] / sumDG;
 	}
 
 	// Flip derivative kernel
 	for (i = 0; i < w/2; i++) {
 		const float temp = *DG[w - i - 1];
-		*DG[w - i - 1] = *DG[i];
-		*DG[i] = temp;
+		g[w - i - 1] = *DG[i];
+		dg[i] = temp;
 	}
+
+	// Save kernels to provided pointers
+	*G = g;
+	*DG = dg;
 }
 
 __global__
 void convolve(const float* image, float* outputImage, const int imageWidth, const int imageHeight, const float* kernel, const int kernelWidth, const int kernelHeight) {
 
 	// Calculate kernel center constants
-	const int kernelCenterX = kernelWidth / 2;
+	/*const int kernelCenterX = kernelWidth / 2;
 	const int kernelCenterY = kernelHeight / 2;
 	
 	// Set initial pixel value to zero
@@ -169,8 +173,8 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 	const int yGlobal = yLocal + yBlockOffset;
 
 	// Setup shared data array
-	extern __shared__ float blockData[];
-	blockData[yLocal * blockDim.x + xLocal] = image[yGlobal * imageWidth + xGlobal];
+	//extern __shared__ float blockData[];
+	//blockData[yLocal * blockDim.x + xLocal] = image[yGlobal * imageWidth + xGlobal];
 	__syncthreads();
 
 	// Loop through each pixel of the   kernel
@@ -193,18 +197,18 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 				// Go to block data
 
 				// Calculate part of the convolve value based on image and kernel pixel.
-				sum += kernel[j * kernelWidth + i] * blockData[(yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset)];
+				//sum += kernel[j * kernelWidth + i] * blockData[(yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset)];
 			} else {
 				// Go to global data
 
 				// Calculate part of the convolve value based on image and kernel pixel.
-				sum += kernel[j * kernelWidth + i] * image[yCalculated * imageWidth + xCalculated];
+				//sum += kernel[j * kernelWidth + i] * image[yCalculated * imageWidth + xCalculated];
 			}
 		}
 	}
 
 	// Write sum to memory
-	outputImage[yGlobal * imageWidth + xGlobal] = sum;
+	//outputImage[yGlobal * imageWidth + xGlobal] = sum;*/
 }
 
 __global__
