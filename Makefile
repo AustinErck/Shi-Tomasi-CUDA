@@ -13,7 +13,7 @@ CFLAGS=-c -O3
 HEADERS=image_template.h
 
 # All of the object files to produce as intermediary work
-OBJECTS=gpu.o
+OBJECTS=main.o shi_tomasi.o
 
 # The final program to build
 EXECUTABLE=goodfeatures

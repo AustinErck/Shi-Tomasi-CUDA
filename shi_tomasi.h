@@ -1,30 +1,39 @@
 /*
-	File: serialprogram.h
-    Author(s): 
-		Yang Liu - University of the Pacific, ECPE 293, Spring 2017
-		Cody Balos - University of the Pacific, ECPE 293, Spring 2017
+	File: shi_tomasi.cu
+	Author(s): 
+		Austin Erck - University of the Pacific, ECPE 251, Spring 2021
 	Description:
-    	Declares the functions used for the serial Shi Tomasi feature detection program.
+		This program implements Shi Tomasi Feature Detection using NVIDIA's CUDA framework. 
 */
 
 #ifndef SHI_TOMASI_GPU_H
 #define SHI_TOMASI_GPU_H
 
-typedef struct FloatWrap {
-	float data;
+#include <stdint.h>
+
+template <typename T> 
+struct LocationData {
+	T data;
 	int x;
 	int y;
-} FloatWrap;
+
+	__host__ __device__
+	bool operator()(const LocationData<T>& A, const LocationData<T>& B) {
+		return (A.data > B.data);
+	}
+};
 
 /**
-*   Sort function to properly sort FloatWrap arrays
+*   TODO - Add other params
 *   
-*   \param A First FloatWrap
-*	\param B Second FloatWrap
-*   \return If A should be sorted after B
+*   \param filepath Full file path to image
+*	\param sigma Sigma value used to generate gaussian kernels
+*   \param sensitivity Percent of total image size that will determine many features will be considered
+*	\param windowSize How large the window for eigenvalue calculation will be
+*   \param blockSize Size of CUDA blocks
 *
 **/
-bool FloatWrap_sort(FloatWrap A, FloatWrap B);
+void shiTomasi(char* filepath, const float sigma, const float sensitivity, const uint8_t windowSize, const uint8_t blockSize, uint8_t verbosity, struct timeval computationStart, struct timeval computationEnd);
 
 /**
 *   Calculates the number of microseconds between two timeval structures
@@ -87,7 +96,7 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 *
 **/
 __global__
-void wrapFloatArray(const float* array, FloatWrap* wrappedArray, const int imageWidth, const int imageHeight);
+void generateLocationData(const float* array, LocationData<float>* wrappedArray, const int imageWidth);
 
 /**
 *   TODO
@@ -100,7 +109,8 @@ void wrapFloatArray(const float* array, FloatWrap* wrappedArray, const int image
 *	\param sensitivity Percentage used to limit the amount of features that will be considered (should default to 0.1)
 *
 **/
+template <typename T> 
 __global__
-void findFeatures(const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
+void findFeatures(const LocationData<T>* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
 
 #endif

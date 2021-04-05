@@ -1,5 +1,5 @@
 /*
-	File: gpu.cu
+	File: shi_tomasi.cu
 	Author(s): 
 		Austin Erck - University of the Pacific, ECPE 251, Spring 2021
 	Description:
@@ -15,33 +15,18 @@
 #include <thrust/host_vector.h>
 #include <thrust/sort.h>
 #include <thrust/copy.h>
-#include "image_template.h"
-#include "gpu.h"
+#include "shi_tomasi.h"
+#include "shi_tomasi.h"
 
-#define RADIUS_OF_FEATURE_MARKER 8
-
-int main(int argc, char **argv){
-
-	// Handle arguments
-	// TODO: Read from argv
-	char *filepath = NULL;
-	int verbosity = 0; // Determines how much information should be shown
-	float sigma = 1.1; // Sigma of the gaussian distribution
-	int blockSize = 16; // CUDA block size
-	int windowSize = 4; // Size of a pixel 'neighborhood'
-	float sensitivity = 0.1; // Number of features = sensitivity*image_width
-
-	// Setup timers
-	struct timeval computationStart, computationEnd;
+void shiTomasi(char* filepath, const float sigma, const float sensitivity, const uint8_t windowSize, const uint8_t blockSize, uint8_t verbosity, struct timeval computationStart, struct timeval computationEnd) {
 
 	// Setup CUDA pointers
 	float *h_data1, *h_G, *h_DG; //host pointers
 	float *d_data1, *d_data2, *d_data3, *d_G, *d_DG; //device pointers
-	FloatWrap *d_fw; // Additional device pointer
+	LocationData<float> *d_ld; // Additional device pointer
 
 	// Read image into first data array
 	int width = 0, height = 0;
-	//const float &initialImage = h1_data;
 	read_image_template(filepath, &h_data1, &width, &height); // h_data1 = initialImage
 
 	// Calculate constants
@@ -63,7 +48,7 @@ int main(int argc, char **argv){
 	cudaMalloc((void **)&d_data3, bytesPerImage);
 	cudaMalloc((void **)&d_G, sizeof(float) * kernelWidth);
 	cudaMalloc((void **)&d_DG, sizeof(float) * kernelWidth);
-	cudaMalloc((void **)&d_fw, sizeof(FloatWrap) * imageSize);
+	cudaMalloc((void **)&d_ld, sizeof(LocationData<float>) * imageSize);
 
 	// Begin computation timer
 	gettimeofday(&computationStart, NULL);
@@ -74,23 +59,23 @@ int main(int argc, char **argv){
 	cudaMemcpy(d_DG, h_DG, sizeof(float) * kernelWidth, cudaMemcpyHostToDevice);
 
 	// Temp Horizontal/Vertical convolutions
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data1(input) => data3(temp_vertical)
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data2, width, height, d_G, 1, kernelWidth); // data1(input) => data2(temp_horizontal)
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data1, d_data3, width, height, d_G, kernelWidth, 1); // data1(input) => data3(temp_vertical)
 
 	// Horizontal/Vertical convolutions
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data2(temp_horizontal) => data1(horizontal)
-	convolve<<<dimGrid,dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data3(temp_vertical) => data2(vertical)
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data2, d_data1, width, height, d_DG, kernelWidth, 1); // data2(temp_horizontal) => data1(horizontal)
+	convolve<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_data2, width, height, d_DG, 1, kernelWidth); // data3(temp_vertical) => data2(vertical)
 
 	// Compute eigenvalues
 	computeEigenvalues<<<dimGrid, dimBlock, bytesPerBlock * 2>>>(d_data1, d_data2, d_data3, width, height, windowSize); // data1(horizontal), data2(vertical) => data3(eigenvalues)
 
-	// Wrap eigenvalues
-	wrapFloatArray<<<dimGrid, dimBlock, bytesPerBlock>>>(d_data3, d_fw, width, height);
+	// Wrap eigenvalues with LocationData struct
+	generateLocationData<<<dimGrid, dimBlock>>>(d_data3, d_ld, width);
 
 	// Sort array of wrapped eigenvalues
-	thrust::device_ptr<FloatWrap> thr_d(d_fw);
-	thrust::device_vector<FloatWrap>d_sortedFloatWrap(thr_d, thr_d + (height * width));
-	thrust::sort(d_sortedFloatWrap.begin(), d_sortedFloatWrap.end(), FloatWrap_sort);
+	thrust::device_ptr< LocationData<float> > thr_d(d_ld);
+	thrust::device_vector< LocationData<float> >d_sortedLocationData(thr_d, thr_d + (height * width));
+	thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end(), LocationData<float>());
 
 	// Find features
 	//findFeatures(const float* inputImage, const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity);
@@ -103,21 +88,12 @@ int main(int argc, char **argv){
 	gettimeofday(&computationEnd, NULL);
 
 	// Save output image to disk
-	char outputFilename[] = "corners.pgm";
+	char outputFilename[] = "shiTomasi_cuda.pgm";
 	write_image_template(outputFilename, h_data1, width, height);
 
 	// Free data from host and devices
 	free(h_data1);
 	cudaFree(d_data1);
-
-	// Print benchmarching information
-	printf("%d, %f, %x, %x, %f, %Lf\n", width, sigma, blockSize, windowSize, sensitivity, calculateTime(computationStart, computationEnd));
-
-	return 0;
-}
-
-bool FloatWrap_sort(FloatWrap A, FloatWrap B) {
-	return (A.data > B.data);
 }
 
 long double calculateTime(struct timeval start, struct timeval end) {
@@ -127,14 +103,17 @@ long double calculateTime(struct timeval start, struct timeval end) {
 void generateKernels(float* G, float* DG, int* width, const float sigma){
 
 	// Calculate a and w(idth) variables used in guassian and derivative guassian kernel calculations
-	float a = roundf(2.5 * sigma - 0.5);
-	int w = 2 * a + 1;
+	const float a = roundf(2.5 * sigma - 0.5);
+	const uint8_t w = 2 * a + 1;
+
+	// Update width pointer to local value w
+	*width = w;
 
 	// Track total of all values used in each kernel
 	float sumG = 0, sumDG = 0;
 
 	// Loop through the width of the kernel and populate kernels while calculating the sum of each
-	int i;
+	uint8_t i;
 	for(i = 0; i < w; i++) {
 		G[i] = expf(-1.0 * powf((float)(i) - a, 2.0) / (2.0 * powf(sigma, 2.0)));
 		DG[i] = -1.0 * ( (float)(i + 1) - 1.0 - a) * expf(-1.0 * powf((float)(i + 1) - 1.0 - a, 2.0) / (2.0 * powf(sigma, 2.0)));
@@ -286,7 +265,7 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 }
 
 __global__
-void wrapFloatArray(const float* array, FloatWrap* wrappedArray, const int imageWidth, const int imageHeight) {
+void generateLocationData(const float* array, LocationData<float>* wrappedArray, const int imageWidth) {
 	
 	// Get x and y based on thread and block index
 	const int xBlockOffset = blockIdx.x * blockDim.x;
@@ -303,7 +282,8 @@ void wrapFloatArray(const float* array, FloatWrap* wrappedArray, const int image
 	wrappedArray[arrayIndex].y = yGlobal;
 }
 
+template <typename T>
 __global__
-void findFeatures(const float* inputImage, const FloatWrap* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity) {
+void findFeatures(const LocationData<T>* wrappedEigenvalues, float* outputImage, const int imageWidth, const int imageHeight, const float sensitivity) {
 
 }
