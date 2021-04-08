@@ -42,7 +42,6 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	// Setup CUDA grid and blocks based on image size
 	dim3 dimBlock(blockSize, blockSize);
 	dim3 dimGrid(width/blockSize, height/blockSize); // ASSUMPTION: Image is divisible by 16
-	printf("%d %d %d %d\n", dimGrid.x, dimGrid.y, dimBlock.x, dimBlock.y);
 
 	// Malloc data on host
 	h_ld = (LocationData<float>*)malloc(sizeof(LocationData<float>) * imageSize);
@@ -77,16 +76,20 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	// Wrap eigenvalues with LocationData struct
 	generateLocationData<<<dimGrid, dimBlock>>>(d_data3, d_ld, width);
 
+	/*cudaMemcpy(h_data1, d_data3, bytesPerImage, cudaMemcpyDeviceToHost);
+	char testImageName[] = "shiTomasi_cuda_eigen.pgm";
+	write_image_template(testImageName, h_data1, width, height);*/
+
 	// Sort array of wrapped eigenvalues
-	//thrust::device_ptr< LocationData<float> > thr_d(d_ld);
-	//thrust::device_vector< LocationData<float> >d_sortedLocationData(thr_d, thr_d + (height * width));
-	//thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end(), LocationData<float>());
+	thrust::device_ptr< LocationData<float> > thr_d(d_ld);
+	thrust::device_vector< LocationData<float> > d_sortedLocationData(thr_d, thr_d + (height * width));
+	thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end());
 
 	// Copy sorted LocationData array back to the host
 	cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
 
 	// Find features
-	//findFeatures(h_data1, h_ld, width, height, sensitivity);
+	findFeatures(h_data1, h_ld, width, height, sensitivity);
 
 	// Measure computation time
 	gettimeofday(computationEnd, NULL);
@@ -98,14 +101,14 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	// Free data from host and devices
 	free(h_data1);
 	free(h_G);
-	//free(h_DG);
-	//free(h_ld);
+	free(h_DG);
+	free(h_ld);
 	cudaFree(d_data1);
 	cudaFree(d_data2);
-	//cudaFree(d_data3);
+	cudaFree(d_data3);
 	cudaFree(d_G);
-	//cudaFree(d_DG);
-	//cudaFree(d_ld);
+	cudaFree(d_DG);
+	cudaFree(d_ld);
 }
 
 long double calculateTime(struct timeval start, struct timeval end) {
@@ -196,12 +199,12 @@ void convolve(const float* image, float* outputImage, const int imageWidth, cons
 				// Go to block data
 
 				// Calculate part of the convolve value based on image and kernel pixel.
-				//sum += kernel[j * kernelWidth + i] * blockData[(yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset)];
+				sum += kernel[j * kernelWidth + i] * blockData[(yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset)];
 			} else {
 				// Go to global data
 
 				// Calculate part of the convolve value based on image and kernel pixel.
-				//sum += kernel[j * kernelWidth + i] * image[yCalculated * imageWidth + xCalculated];
+				sum += kernel[j * kernelWidth + i] * image[yCalculated * imageWidth + xCalculated];
 			}
 		}
 	}
@@ -217,7 +220,7 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 	const int windowCenter = windowSize / 2;
 	
 	// Set initial pixel value to zero
-	float sumIXX = 0, sumIYY = 0, sumIXIY = 0;
+	float sumIXX = 0, sumIYY = 0, sumIXIY = 0, horizontalValue, verticalValue;
 
 	// Get x and y based on thread and block index
 	const int xBlockOffset = blockIdx.x * blockDim.x;
@@ -228,12 +231,12 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 	const int yGlobal = yLocal + yBlockOffset;
 
 	// Setup shared data array
-	extern __shared__ float sharedData[];
+	/*extern __shared__ float sharedData[];
 	float *horizontalImageLocal = (float*)&sharedData; // Use first half of shared memory for horizontal image
 	float *verticalImageLocal = (float*)&sharedData + (sizeof(float) * imageWidth * imageHeight); // Use second half of shared memory for vertical image
 	horizontalImageLocal[yLocal * blockDim.x + xLocal] = horizontalImage[yGlobal * imageWidth + xGlobal];
 	verticalImageLocal[yLocal * blockDim.x + xLocal] = verticalImage[yGlobal * imageWidth + xGlobal];
-	__syncthreads();
+	__syncthreads();*/
 
 	// Loop through each pixel of the   kernel
 	int i, j;
@@ -249,26 +252,32 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 				continue;
 			}
 
-			// Determine sum values for ixx, iyy, and ixiy
+			// Determine value for horizontal and vertical image
 			// Both cases perform the same action, however if possible local data(horizontalImageLocal & verticalImageLocal) is used instead of global data(horizontalImage & verticalImage)
 			if(xCalculated >= xBlockOffset && xCalculated < xBlockOffset + blockDim.x && yCalculated >= yBlockOffset && yCalculated < yBlockOffset + blockDim.y) {
 				// Go to local data
 
 				// Calculate array offset
-				const int arrayOffset = (yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset);
+				//const int arrayOffset = (yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset);
 
-				// Calculate part of the convolve value based on image and kernel pixel.
-				sumIXX += powf(horizontalImageLocal[arrayOffset], 2.0); // horizontalImage^2
-				sumIYY += powf(verticalImageLocal[arrayOffset], 2.0); // verticalImage^2
-				sumIXIY += horizontalImageLocal[arrayOffset] * verticalImageLocal[arrayOffset]; // horizontalImage * verticalImage
+				// Save horizontal & vertical values to local variables
+				horizontalValue = horizontalImage[yCalculated * imageWidth + xCalculated]; //horizontalImageLocal[arrayOffset] instead
+				verticalValue = verticalImage[yCalculated * imageWidth + xCalculated]; //verticalImageLocal[arrayOffset] instead
 			} else {
 				// Go to global data
 
-				// Calculate part of the convolve value based on image and kernel pixel.
-				sumIXX += powf(horizontalImage[yCalculated * imageWidth + xCalculated], 2.0); // horizontalImage^2
-				sumIYY += powf(verticalImage[yCalculated * imageWidth + xCalculated], 2.0); // verticalImage^2
-				sumIXIY += horizontalImage[yCalculated * imageWidth + xCalculated] * verticalImageLocal[yCalculated * imageWidth + xCalculated]; // horizontalImage * verticalImage
+				// Save horizontal & vertical values to local variables
+				horizontalValue = horizontalImage[yCalculated * imageWidth + xCalculated];
+				verticalValue = verticalImage[yCalculated * imageWidth + xCalculated];
 			}
+
+			sumIXX += powf(horizontalValue, 2.0); // horizontalImage^2
+			sumIYY += powf(verticalValue, 2.0); // verticalImage^2
+			sumIXIY += horizontalValue * verticalValue; // horizontalImage * verticalImage
+
+			/*if(xGlobal == 0 && yGlobal == 0) {
+				printf("%d: %f %f %f\n", yCalculated * imageWidth + xCalculated, sumIXX, sumIYY, sumIXIY);
+			}*/
 		}
 	}
 
@@ -295,7 +304,7 @@ void generateLocationData(const float* array, LocationData<float>* wrappedArray,
 	const int arrayIndex = yGlobal * imageWidth + xGlobal;
 
 	// Add new instance to array
-	wrappedArray[arrayIndex].data = array[yGlobal * imageWidth + xGlobal];
+	wrappedArray[arrayIndex].data = array[arrayIndex];
 	wrappedArray[arrayIndex].x = xGlobal;
 	wrappedArray[arrayIndex].y = yGlobal;
 }

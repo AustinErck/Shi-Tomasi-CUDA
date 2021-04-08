@@ -18,9 +18,14 @@ struct LocationData {
 	int y;
 
 	__host__ __device__
+	bool operator < (const LocationData<T>& B) const {
+		return data > B.data;
+	}
+
+	/*__host__ __device__
 	bool operator()(const LocationData<T>& A, const LocationData<T>& B) {
 		return (A.data > B.data);
-	}
+	}*/
 };
 
 /**
