@@ -18,7 +18,7 @@
 #include "shi_tomasi.h"
 #include "image_template.h"
 
-void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, struct timeval* computationStart, struct timeval* computationEnd) {
+void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, int* imageWidth, struct timeval* computationStart, struct timeval* computationEnd) {
 
 	// Setup CUDA pointers
 	float *h_data1, *h_G, *h_DG; //host pointers
@@ -29,6 +29,7 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	// Read image into first data array
 	int width = 0, height = 0;
 	read_image_template(filepath, &h_data1, &width, &height); // h_data1 = initialImage
+	*imageWidth = width; // Pass width back to main
 
 	// Calculate constants
 	const int imageSize = width * height;
@@ -317,7 +318,6 @@ void findFeatures(float* image, const LocationData<float>* wrappedEigenvalues, c
 	
 	// Determine the max features that will be considered
 	int maxFeatures = ceil(imageWidth * sensitivity); // This is wrong, but was kept the same for performance testing
-	printf("maxFeatures: %d\n", maxFeatures);
 	LocationData<float> features[maxFeatures];
 
 	// Set the first feature so we have a starting point.

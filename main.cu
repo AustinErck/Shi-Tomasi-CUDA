@@ -15,8 +15,8 @@
 int main(int argc, char **argv) {
 
 	// Check that image path and sigma are provided
-	if( argc != 5 ) {
-		printf("Please provide an image path, sigma value in the following format:\n./goodfeatures <full path to image> [sigma] [window size] [sensitivity] [block size]\n");
+	if( argc != 6 ) {
+		printf("Usage: ./goodfeatures <full path to image> [sigma] [window size] [sensitivity] [block size]\n");
 		return 1;
 	}
 
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
 	// Get window size value
 	int windowSize = atoi(argv[3]);
 
-	// Get sigma value
+	// Get sensitivity value
 	char* sensitivityConversionError;
 	char* sensitivityString = argv[4];
 	float sensitivity = (float)strtod(sensitivityString, &sensitivityConversionError);
@@ -45,16 +45,17 @@ int main(int argc, char **argv) {
 	}
 
 	// Get block size size value
-	int blockSize = atoi(argv[2]);
+	int blockSize = atoi(argv[5]);
 
 	// Setup timers
 	struct timeval computationStart, computationEnd;
 
 	// Run algorihm
-	shiTomasi(filepath, sigma, sensitivity, windowSize, blockSize, &computationStart, &computationEnd);
+	int width;
+	shiTomasi(filepath, sigma, sensitivity, windowSize, blockSize, &width, &computationStart, &computationEnd);
 
 	// Print benchmarching information
-	printf("%d, %f, %d, %d, %f, %Lf\n", 0, sigma, blockSize, windowSize, sensitivity, calculateTime(computationStart, computationEnd));
+	printf("%d, %f, %d, %d, %f, %Lf\n", width, sigma, windowSize, sensitivity, blockSize, calculateTime(computationStart, computationEnd));
 
 	return 0;
 };
