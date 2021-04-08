@@ -81,12 +81,22 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	write_image_template(testImageName, h_data1, width, height);*/
 
 	// Sort array of wrapped eigenvalues
-	thrust::device_ptr< LocationData<float> > thr_d(d_ld);
-	thrust::device_vector< LocationData<float> > d_sortedLocationData(thr_d, thr_d + (height * width));
-	thrust::sort(d_sortedLocationData.begin(), d_sortedLocationData.end());
+	thrust::device_ptr< LocationData<float> > thrust_d_ld(d_ld);
+	thrust::sort(thrust_d_ld, thrust_d_ld + width * height, LocationDataCmp<float>());
+    d_ld = thrust::raw_pointer_cast(thrust_d_ld);
 
 	// Copy sorted LocationData array back to the host
 	cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
+
+	// Draw box around each feature
+	for (int i = 0; i < 100; i++) {
+		printf("Feature[%d]: %f\n", i, h_ld[i].data);
+	}
+
+	// Draw box around each feature
+	for (int i = height * width - 100; i < height * width; i++) {
+		printf("Feature[%d]: %f\n", i, h_ld[i].data);
+	}
 
 	// Find features
 	findFeatures(h_data1, h_ld, width, height, sensitivity);
@@ -262,7 +272,7 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 
 				// Save horizontal & vertical values to local variables
 				horizontalValue = horizontalImageLocal[arrayOffset];
-				verticalValue = vverticalImageLocal[arrayOffset];
+				verticalValue = verticalImageLocal[arrayOffset];
 			} else {
 				// Go to global data
 
@@ -321,6 +331,7 @@ void findFeatures(float* image, const LocationData<float>* wrappedEigenvalues, c
 	
 	// Determine the max features that will be considered
 	int maxFeatures = ceil(imageWidth * sensitivity); // This is wrong, but was kept the same for performance testing
+	printf("maxFeatures: %d\n", maxFeatures);
 	LocationData<float> features[maxFeatures];
 
 	// Set the first feature so we have a starting point.

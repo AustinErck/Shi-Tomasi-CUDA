@@ -16,16 +16,14 @@ struct LocationData {
 	T data;
 	int x;
 	int y;
+};
 
-	__host__ __device__
-	bool operator < (const LocationData<T>& B) const {
-		return data > B.data;
-	}
-
-	/*__host__ __device__
-	bool operator()(const LocationData<T>& A, const LocationData<T>& B) {
-		return (A.data > B.data);
-	}*/
+template <typename T> 
+struct LocationDataCmp {
+  __host__ __device__
+  bool operator()(const LocationData<T>& o1, const LocationData<T>& o2) {
+      return o1.data > o2.data;
+  }
 };
 
 /**
