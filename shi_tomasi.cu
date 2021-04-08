@@ -76,10 +76,6 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 	// Wrap eigenvalues with LocationData struct
 	generateLocationData<<<dimGrid, dimBlock>>>(d_data3, d_ld, width);
 
-	/*cudaMemcpy(h_data1, d_data3, bytesPerImage, cudaMemcpyDeviceToHost);
-	char testImageName[] = "shiTomasi_cuda_eigen.pgm";
-	write_image_template(testImageName, h_data1, width, height);*/
-
 	// Sort array of wrapped eigenvalues
 	thrust::device_ptr< LocationData<float> > thrust_d_ld(d_ld);
 	thrust::sort(thrust_d_ld, thrust_d_ld + width * height, LocationDataCmp<float>());
@@ -87,16 +83,6 @@ void shiTomasi(char* filepath, const float sigma, const float sensitivity, const
 
 	// Copy sorted LocationData array back to the host
 	cudaMemcpy(h_ld, d_ld, bytesPerImage, cudaMemcpyDeviceToHost);
-
-	// Draw box around each feature
-	for (int i = 0; i < 100; i++) {
-		printf("Feature[%d]: %f\n", i, h_ld[i].data);
-	}
-
-	// Draw box around each feature
-	for (int i = height * width - 100; i < height * width; i++) {
-		printf("Feature[%d]: %f\n", i, h_ld[i].data);
-	}
 
 	// Find features
 	findFeatures(h_data1, h_ld, width, height, sensitivity);
