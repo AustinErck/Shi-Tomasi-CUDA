@@ -1,10 +1,8 @@
 # CUDA Corner Detection - Shi Tomasi
 
-More info coming soon!
-
 ## Usage
 
-    ./goodfeatures [-v,-vv] <full path to the image> [sigma] [windowsize] [sensitivity]
+    ./goodfeatures <full path to image> [sigma] [window size] [sensitivity] [cuda block size]
 
 **flags:**
  - h: show this help menu

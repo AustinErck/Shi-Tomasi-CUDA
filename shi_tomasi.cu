@@ -18,7 +18,7 @@
 #include "shi_tomasi.h"
 #include "image_template.h"
 
-void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, bool verbosity, struct timeval* computationStart, struct timeval* computationEnd) {
+void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, struct timeval* computationStart, struct timeval* computationEnd) {
 
 	// Setup CUDA pointers
 	float *h_data1, *h_G, *h_DG; //host pointers

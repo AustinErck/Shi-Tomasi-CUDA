@@ -39,7 +39,7 @@ struct LocationDataCmp {
 *   \param computationEnd Pointer to timeval end
 *
 **/
-void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, bool verbosity, struct timeval* computationStart, struct timeval* computationEnd);
+void shiTomasi(char* filepath, const float sigma, const float sensitivity, const unsigned int windowSize, const unsigned int blockSize, struct timeval* computationStart, struct timeval* computationEnd);
 
 /**
 *   Calculates the number of microseconds between two timeval structures
