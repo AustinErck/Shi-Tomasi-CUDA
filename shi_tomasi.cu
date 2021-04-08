@@ -231,12 +231,12 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 	const int yGlobal = yLocal + yBlockOffset;
 
 	// Setup shared data array
-	/*extern __shared__ float sharedData[];
+	extern __shared__ float sharedData[];
 	float *horizontalImageLocal = (float*)&sharedData; // Use first half of shared memory for horizontal image
-	float *verticalImageLocal = (float*)&sharedData + (sizeof(float) * imageWidth * imageHeight); // Use second half of shared memory for vertical image
+	float *verticalImageLocal = horizontalImageLocal + (blockDim.x * blockDim.y); // Use second half of shared memory for vertical image
 	horizontalImageLocal[yLocal * blockDim.x + xLocal] = horizontalImage[yGlobal * imageWidth + xGlobal];
 	verticalImageLocal[yLocal * blockDim.x + xLocal] = verticalImage[yGlobal * imageWidth + xGlobal];
-	__syncthreads();*/
+	__syncthreads();
 
 	// Loop through each pixel of the   kernel
 	int i, j;
@@ -258,11 +258,11 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 				// Go to local data
 
 				// Calculate array offset
-				//const int arrayOffset = (yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset);
+				const int arrayOffset = (yCalculated - yBlockOffset) * blockDim.x + (xCalculated - xBlockOffset);
 
 				// Save horizontal & vertical values to local variables
-				horizontalValue = horizontalImage[yCalculated * imageWidth + xCalculated]; //horizontalImageLocal[arrayOffset] instead
-				verticalValue = verticalImage[yCalculated * imageWidth + xCalculated]; //verticalImageLocal[arrayOffset] instead
+				horizontalValue = horizontalImageLocal[arrayOffset];
+				verticalValue = vverticalImageLocal[arrayOffset];
 			} else {
 				// Go to global data
 
@@ -274,10 +274,6 @@ void computeEigenvalues(const float* horizontalImage, const float* verticalImage
 			sumIXX += powf(horizontalValue, 2.0); // horizontalImage^2
 			sumIYY += powf(verticalValue, 2.0); // verticalImage^2
 			sumIXIY += horizontalValue * verticalValue; // horizontalImage * verticalImage
-
-			/*if(xGlobal == 0 && yGlobal == 0) {
-				printf("%d: %f %f %f\n", yCalculated * imageWidth + xCalculated, sumIXX, sumIYY, sumIXIY);
-			}*/
 		}
 	}
 
